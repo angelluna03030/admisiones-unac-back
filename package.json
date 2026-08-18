@@ -4,14 +4,18 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "build": "bun run build",
-    "start": "bun run src/index.ts"
-    
+    "dev": "bun  --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target=node",
+    "start": "tsx watch src/index.ts",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "test": "bun test",
+    "ok": "bun run format && bun run build && git add ."
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^26.2.0",
+    "prettier": "3.9.6",
     "prisma": "^7.9.1"
   },
   "peerDependencies": {

@@ -11,3 +11,354 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Estado macro de la solicitud, mapeado a las etapas del BPMN (pasos 1-9)
+enum EstadoSolicitud {
+  FORMULARIO_COMPLETADO   // Paso 1: Aspirante diligencia formulario (SION)
+  PAGO_INSCRIPCION        // Paso 2: Pago de derechos de inscripción
+  DOCUMENTOS_CARGADOS     // Paso 3: Documentos subidos (identidad, foto, certificados)
+  VALIDACION_REQUISITOS   // Paso 4: Admisiones valida bachiller + ICFES
+  OBSERVADO               // Paso 4b: Devuelto con observaciones por Admisiones
+  ADMITIDO_PRELIMINAR     // Paso 5: Aprobado por Admisiones (1-3 días), pasa a entrevistas
+  EN_ENTREVISTA_CAPELLANIA
+  EN_ENTREVISTA_ACADEMICA
+  CORRECCION_PERFIL       // Loop de corrección: ajuste de plan o perfil (6d "No")
+  EN_RATIFICACION         // Paso 6d: revisión final Vicerrectoría
+  ADMITIDO                // Paso 6c: notificado al aspirante
+  RECHAZADO                // Rechazo por requisitos o entrevistas
+  MATRICULADO              // Paso 7: pago de matrícula realizado
+  CUENTA_ACTIVADA          // Paso 8: Registro Académico activa cuenta
+  ARCHIVADO                // Paso 9: archivo y custodia del expediente
+}
+
+/// Tipo de documento exigido en el paso 3
+enum TipoDocumento {
+  DOCUMENTO_IDENTIDAD
+  FOTO
+  CERTIFICADO_BACHILLER
+  RESULTADO_ICFES
+  OTRO
+}
+
+enum EstadoDocumento {
+  PENDIENTE
+  CARGADO
+  VALIDADO
+  RECHAZADO
+}
+
+/// Rol interno del usuario/funcionario dentro del sistema (no el aspirante)
+enum RolUsuario {
+  ADMISIONES
+  CAPELLAN
+  COORDINADOR_PROGRAMA
+  VICERRECTORIA
+  OFICINA_FINANCIERA
+  REGISTRO_ACADEMICO
+  ADMIN
+}
+
+/// Corresponde a los dos gateways de entrevista (Capellán / Coordinación)
+enum TipoEntrevista {
+  CAPELLANIA
+  ACADEMICA
+}
+
+enum EstadoEntrevista {
+  PENDIENTE
+  REPROGRAMADA
+  COMPLETADA
+  CANCELADA
+}
+
+/// Decisión tomada por Coordinación tras las entrevistas (paso 6c/6d)
+enum TipoDecision {
+  NOTIFICAR_ADMISION
+  SOLICITAR_CORRECCION_PERFIL
+  RECHAZAR
+}
+
+/// Estado del flujo de ratificación por Vicerrectoría (rombo "Si/No" del BPMN)
+enum EstadoRatificacion {
+  PENDIENTE
+  RATIFICADA
+  RECHAZADA
+}
+
+// ============================================================================
+// MÓDULO 1: ASPIRANTES Y PROGRAMAS
+// ============================================================================
+
+model Aspirante {
+  id               String   @id @default(uuid())
+  nombres          String
+  apellidos        String
+  tipoDocumento    String   // CC, TI, CE, Pasaporte, etc.
+  numeroDocumento  String   @unique
+  correo           String   @unique
+  telefono         String?
+  fechaNacimiento  DateTime?
+  direccion        String?
+  ciudad           String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  solicitudes Solicitud[]
+
+  @@map("aspirantes")
+}
+
+model ProgramaAcademico {
+  id          String  @id @default(uuid())
+  nombre      String
+  codigo      String  @unique
+  facultad    String?
+  jornada     String? // Diurna, Nocturna, Virtual, etc.
+  activo      Boolean @default(true)
+
+  solicitudes Solicitud[]
+
+  @@map("programas_academicos")
+}
+
+// ============================================================================
+// MÓDULO 2: SOLICITUD DE ADMISIÓN (núcleo del proceso, pasos 1-9)
+// ============================================================================
+
+model Solicitud {
+  id     String @id @default(uuid())
+  codigo String @unique @default(cuid()) // radicado visible para el aspirante
+
+  aspiranteId String
+  aspirante   Aspirante @relation(fields: [aspiranteId], references: [id])
+
+  programaId String
+  programa   ProgramaAcademico @relation(fields: [programaId], references: [id])
+
+  estado EstadoSolicitud @default(FORMULARIO_COMPLETADO)
+
+  // --- Hitos del proceso (pasos 1-4 del BPMN) ---
+  formularioCompletadoEn DateTime? // Paso 1
+  pagoInscripcionEn      DateTime? // Paso 2
+  valorPagoInscripcion   Decimal?  @db.Decimal(10, 2)
+
+  // --- Validación de requisitos (Paso 4: bachiller + ICFES) ---
+  bachillerValidado   Boolean   @default(false)
+  puntajeIcfes        Int?
+  icfesValidado       Boolean   @default(false)
+  requisitosValidados Boolean   @default(false)
+  fechaValidacion     DateTime?
+  validadoPorId       String?
+  validadoPor         Usuario?  @relation("SolicitudesValidadas", fields: [validadoPorId], references: [id])
+
+  // --- Aprobación preliminar de Admisiones (Paso 5, SLA 1-3 días) ---
+  aprobadoPreliminarEn DateTime?
+  fechaLimiteRespuesta DateTime? // control de SLA de 1-3 días hábiles
+
+  // --- Matrícula y activación (pasos 7-8) ---
+  matriculaPagadaEn DateTime?
+  valorMatricula    Decimal?  @db.Decimal(10, 2)
+  cuentaActivadaEn  DateTime?
+  codigoEstudiante  String?   @unique
+
+  // --- Archivo (paso 9) ---
+  archivadoEn DateTime?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  documentos          Documento[]
+  observaciones       ObservacionAdmisiones[]
+  entrevistas         Entrevista[]
+  decisiones          DecisionAdmision[]
+
+  @@map("solicitudes")
+  @@index([estado])
+}
+
+/// Documentos requeridos en el paso 3 (identidad, foto, certificados)
+model Documento {
+  id           String          @id @default(uuid())
+  solicitudId  String
+  solicitud    Solicitud       @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  tipo         TipoDocumento
+  estado       EstadoDocumento @default(PENDIENTE)
+  urlArchivo   String?
+  observacion  String?
+
+  cargadoEn    DateTime?
+  validadoEn   DateTime?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("documentos")
+  @@unique([solicitudId, tipo])
+}
+
+/// Notificaciones de observaciones de Admisiones (nodo "4b" del BPMN, loop de retorno al paso 4)
+model ObservacionAdmisiones {
+  id          String    @id @default(uuid())
+  solicitudId String
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  motivo      String
+  detalle     String?
+  resuelta    Boolean   @default(false)
+
+  emitidaPorId String
+  emitidaPor   Usuario  @relation(fields: [emitidaPorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("observaciones_admisiones")
+}
+
+// ============================================================================
+// MÓDULO 3: USUARIOS INTERNOS (Admisiones, Capellán, Coordinador, Vicerrectoría)
+// ============================================================================
+
+model Usuario {
+  id       String     @id @default(uuid())
+  nombres  String
+  apellidos String
+  correo   String     @unique
+  rol      RolUsuario
+  activo   Boolean    @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  solicitudesValidadas   Solicitud[]              @relation("SolicitudesValidadas")
+  observacionesEmitidas  ObservacionAdmisiones[]
+  entrevistasComoEvaluador Entrevista[]           @relation("EntrevistaEvaluador")
+  decisionesTomadas      DecisionAdmision[]       @relation("DecisionesTomadas")
+  ratificaciones         DecisionAdmision[]       @relation("DecisionesRatificadas")
+
+  @@map("usuarios")
+}
+
+// ============================================================================
+// MÓDULO 4: ENTREVISTAS Y AGENDAMIENTO (pasos 6a, 6b del BPMN)
+// ============================================================================
+
+model Entrevista {
+  id          String    @id @default(uuid())
+  solicitudId String
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  tipo   TipoEntrevista   // CAPELLANIA (6a) o ACADEMICA (6b)
+  estado EstadoEntrevista @default(PENDIENTE)
+
+  evaluadorId String?
+  evaluador   Usuario? @relation("EntrevistaEvaluador", fields: [evaluadorId], references: [id])
+
+  fechaProgramada DateTime?
+  fechaRealizada  DateTime?
+  modalidad       String?   // Presencial, Virtual
+  lugarOEnlace    String?
+  motivoReprogramacion String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Solo una de las dos evaluaciones aplica según el campo `tipo`
+  evaluacionCapellania EvaluacionCapellania?
+  evaluacionAcademica  EvaluacionAcademica?
+
+  @@map("entrevistas")
+  @@index([solicitudId, tipo])
+}
+
+// ============================================================================
+// MÓDULO 5: EVALUACIONES Y CRITERIOS (rúbricas 1-5)
+// ============================================================================
+
+/// Rúbrica de la entrevista con Capellanía (paso 6a): valores, proyecto de vida,
+/// convivencia, compromiso con el Manual de Convivencia y actitud.
+/// Cada criterio se puntúa de 1 a 5.
+model EvaluacionCapellania {
+  id           String     @id @default(uuid())
+  entrevistaId String     @unique
+  entrevista   Entrevista @relation(fields: [entrevistaId], references: [id], onDelete: Cascade)
+
+  valoresPrincipiosEticos  Int // 1-5: valores y principios éticos
+  proyectoDeVida           Int // 1-5: claridad y coherencia del proyecto de vida
+  convivenciaComunitaria   Int // 1-5: disposición a la vida en comunidad
+  compromisoReglamento     Int // 1-5: compromiso con el Manual de Convivencia UNAC
+  actitudDisposicion       Int // 1-5: actitud general durante la entrevista
+
+  /// Promedio calculado de los 5 criterios (se recomienda recalcular en la capa de aplicación)
+  promedio Decimal @db.Decimal(3, 2)
+
+  observaciones String? @db.Text
+
+  evaluadaEn DateTime @default(now())
+
+  @@map("evaluaciones_capellania")
+}
+
+/// Rúbrica de la entrevista Académica con Coordinación/Decanatura (paso 6b):
+/// aptitud académica, perfil para el programa, comunicación, pensamiento
+/// crítico y motivación intrínseca. Cada criterio se puntúa de 1 a 5.
+model EvaluacionAcademica {
+  id           String     @id @default(uuid())
+  entrevistaId String     @unique
+  entrevista   Entrevista @relation(fields: [entrevistaId], references: [id], onDelete: Cascade)
+
+  aptitudAcademica       Int // 1-5
+  perfilParaElPrograma   Int // 1-5
+  habilidadesComunicacion Int // 1-5
+  pensamientoCritico     Int // 1-5
+  motivacionIntrinseca   Int // 1-5
+
+  /// Promedio calculado de los 5 criterios
+  promedio Decimal @db.Decimal(3, 2)
+
+  conceptoAcademico       String? @db.Text // concepto cualitativo del entrevistador
+  recomendacionFinal      String? @db.Text // recomendación textual (admitir, ajustar perfil, etc.)
+
+  evaluadaEn DateTime @default(now())
+
+  @@map("evaluaciones_academicas")
+}
+
+// ============================================================================
+// MÓDULO 6: DECISIONES Y RATIFICACIÓN (pasos 6c, 6d del BPMN)
+// ============================================================================
+
+/// Decisión de Coordinación tras evaluar entrevistas, con flujo de
+/// ratificación de Vicerrectoría (rombo "Si/No" -> Loop de corrección o Matrícula)
+model DecisionAdmision {
+  id          String    @id @default(uuid())
+  solicitudId String
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  tipo TipoDecision // NOTIFICAR_ADMISION | SOLICITAR_CORRECCION_PERFIL | RECHAZAR
+
+  tomadaPorId String
+  tomadaPor   Usuario @relation("DecisionesTomadas", fields: [tomadaPorId], references: [id])
+  tomadaEn    DateTime @default(now())
+  justificacion String? @db.Text
+
+  // --- Ratificación de Vicerrectoría (paso 6d) ---
+  estadoRatificacion EstadoRatificacion @default(PENDIENTE)
+  ratificadaPorId    String?
+  ratificadaPor      Usuario?           @relation("DecisionesRatificadas", fields: [ratificadaPorId], references: [id])
+  ratificadaEn       DateTime?
+  comentarioRatificacion String?        @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("decisiones_admision")
+  @@index([solicitudId])
+}
