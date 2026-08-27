@@ -2,33 +2,52 @@ import type { Request, Response } from 'express';
 import { prisma } from '../db/prisma.service';
 
 export const programaController = {
-  // Obtener todos los programas
   getAll: async (req: Request, res: Response) => {
     try {
-      const programas = await prisma.programaAcademico.findMany({
-        where: { activo: true },
-        orderBy: { nombre: 'asc' },
-      });
-      res.status(200).json(programas);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+      const search = req.query.search as string;
+
+      const where = search
+        ? {
+            OR: [
+              { nombre: { contains: search, mode: 'insensitive' as const } },
+              { codigo: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {};
+
+      const [data, total] = await Promise.all([
+        prisma.programaAcademico.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { nombre: 'asc' },
+        }),
+        prisma.programaAcademico.count({ where }),
+      ]);
+
+      res.status(200).json({ success: true, data, total, page, limit });
     } catch (error) {
       console.error('Error al obtener programas:', error);
-      res.status(500).json({ error: 'Error interno del servidor' });
+      res
+        .status(500)
+        .json({ success: false, message: 'Error interno del servidor' });
     }
   },
 
-  // Crear un nuevo programa
   create: async (req: Request, res: Response) => {
     try {
       const { nombre, codigo, facultad, jornada } = req.body;
-
-      // Validación básica
       if (!nombre || !codigo) {
-        return res
-          .status(400)
-          .json({ error: 'Nombre y código son obligatorios' });
+        return res.status(400).json({
+          success: false,
+          message: 'Nombre y código son obligatorios',
+        });
       }
 
-      const nuevoPrograma = await prisma.programaAcademico.create({
+      const data = await prisma.programaAcademico.create({
         data: {
           nombre,
           codigo,
@@ -37,38 +56,74 @@ export const programaController = {
         },
       });
 
-      res.status(201).json(nuevoPrograma);
+      res.status(201).json({ success: true, data });
     } catch (error: any) {
-      // Manejo de error de unicidad (código duplicado)
       if (error.code === 'P2002') {
-        return res
-          .status(409)
-          .json({ error: 'Ya existe un programa con ese código' });
+        return res.status(409).json({
+          success: false,
+          message: 'Ya existe un programa con ese código',
+        });
       }
-      console.error('Error al crear programa:', error);
-      res.status(500).json({ error: 'Error interno del servidor' });
+      res
+        .status(500)
+        .json({ success: false, message: 'Error interno del servidor' });
     }
   },
 
-  // Obtener un programa por ID
-  getById: async (req: Request, res: Response) => {
+  update: async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id;
       if (typeof id !== 'string') {
-        return res.status(400).json({ error: 'ID de programa inválido' });
+        return res.status(400).json({ success: false, message: 'Id inválido' });
       }
+      const { nombre, codigo, facultad, jornada } = req.body;
 
+      const data = await prisma.programaAcademico.update({
+        where: { id },
+        data: { nombre, codigo, facultad, jornada },
+      });
+
+      res.status(200).json({ success: true, data });
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        return res
+          .status(404)
+          .json({ success: false, message: 'Programa no encontrado' });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: 'Error interno del servidor' });
+    }
+  },
+
+  toggleStatus: async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+      if (typeof id !== 'string') {
+        return res.status(400).json({ success: false, message: 'Id inválido' });
+      }
       const programa = await prisma.programaAcademico.findUnique({
         where: { id },
       });
+      if (!programa)
+        return res
+          .status(404)
+          .json({ success: false, message: 'No encontrado' });
 
-      if (!programa) {
-        return res.status(404).json({ error: 'Programa no encontrado' });
-      }
+      const updated = await prisma.programaAcademico.update({
+        where: { id },
+        data: { activo: !programa.activo },
+      });
 
-      res.status(200).json(programa);
+      res.status(200).json({
+        success: true,
+        message: `Programa ${updated.activo ? 'activado' : 'desactivado'} correctamente`,
+        data: { activo: updated.activo },
+      });
     } catch (error) {
-      res.status(500).json({ error: 'Error interno del servidor' });
+      res
+        .status(500)
+        .json({ success: false, message: 'Error interno del servidor' });
     }
   },
 };
