@@ -1,17 +1,17 @@
 import type { Request, Response } from 'express';
-import { usuarioService } from '../models/usuario.service';
+import { entrevistaService } from '../models/entrevista.service';
 import {
-  createUsuarioSchema,
-  updateUsuarioSchema,
-} from '../domain/usuario/usuario.schema';
+  createEntrevistaSchema,
+  updateEntrevistaSchema,
+} from '../domain/entrevista/entrevista.schema';
 
-export const usuarioController = {
+export const entrevistaController = {
   getAll: async (req: Request, res: Response) => {
     try {
-      const data = await usuarioService.getAll();
+      const data = await entrevistaService.getAll();
       res.status(200).json({ success: true, data });
     } catch (error) {
-      console.error('Error al obtener usuarios:', error);
+      console.error('Error al obtener entrevistas:', error);
       res
         .status(500)
         .json({ success: false, message: 'Error interno del servidor' });
@@ -21,14 +21,11 @@ export const usuarioController = {
   getById: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const data = await usuarioService.getById(id as string);
-
-      if (!data) {
+      const data = await entrevistaService.getById(id as string);
+      if (!data)
         return res
           .status(404)
-          .json({ success: false, message: 'Usuario no encontrado' });
-      }
-
+          .json({ success: false, message: 'Entrevista no encontrada' });
       res.status(200).json({ success: true, data });
     } catch (error) {
       res
@@ -39,8 +36,7 @@ export const usuarioController = {
 
   create: async (req: Request, res: Response) => {
     try {
-      // 1. Validar con Zod
-      const validationResult = createUsuarioSchema.safeParse(req.body);
+      const validationResult = createEntrevistaSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json({
           success: false,
@@ -49,27 +45,22 @@ export const usuarioController = {
         });
       }
 
-      // 2. Ejecutar lógica
-      const data = await usuarioService.create(validationResult.data);
+      const data = await entrevistaService.create(validationResult.data);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      if (error.code === 'P2002') {
-        return res.status(409).json({
-          success: false,
-          message: 'El correo electrónico ya está registrado',
-        });
-      }
       res
         .status(500)
-        .json({ success: false, message: 'Error interno del servidor' });
+        .json({
+          success: false,
+          message: error.message || 'Error interno del servidor',
+        });
     }
   },
 
   update: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-
-      const validationResult = updateUsuarioSchema.safeParse(req.body);
+      const validationResult = updateEntrevistaSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json({
           success: false,
@@ -78,7 +69,7 @@ export const usuarioController = {
         });
       }
 
-      const data = await usuarioService.update(
+      const data = await entrevistaService.update(
         id as string,
         validationResult.data,
       );
@@ -87,13 +78,7 @@ export const usuarioController = {
       if (error.code === 'P2025') {
         return res
           .status(404)
-          .json({ success: false, message: 'Usuario no encontrado' });
-      }
-      if (error.code === 'P2002') {
-        return res.status(409).json({
-          success: false,
-          message: 'El correo electrónico ya está en uso',
-        });
+          .json({ success: false, message: 'Entrevista no encontrada' });
       }
       res
         .status(500)
@@ -104,15 +89,15 @@ export const usuarioController = {
   delete: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      await usuarioService.delete(id as string);
+      await entrevistaService.delete(id as string);
       res
         .status(200)
-        .json({ success: true, message: 'Usuario desactivado correctamente' });
+        .json({ success: true, message: 'Entrevista eliminada correctamente' });
     } catch (error: any) {
       if (error.code === 'P2025') {
         return res
           .status(404)
-          .json({ success: false, message: 'Usuario no encontrado' });
+          .json({ success: false, message: 'Entrevista no encontrada' });
       }
       res
         .status(500)
