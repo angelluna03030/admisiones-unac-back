@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors'; // <-- 1. Importar cors
 import { programaRoutes } from './routes/programa.routes';
 import { aspiranteRoutes } from './routes/aspirante.routes';
+import { usuarioRoutes } from './routes/usuario.routes';
 
 export const app = express();
 
@@ -27,6 +28,7 @@ app.get('/health', (req, res) => {
 // 5. Rutas de la API
 app.use('/api/programas', programaRoutes);
 app.use('/aspirantes', aspiranteRoutes); // <-- Agrega esta línea
+app.use('/api/usuarios', usuarioRoutes);
 // ⚠️ NOTA: Fíjate que aquí puse '/api/programas'.
 // Si tu frontend llama a 'http://localhost:3000/programas' (sin /api),
 // cambia esta línea a: app.use('/programas', programaRoutes);
