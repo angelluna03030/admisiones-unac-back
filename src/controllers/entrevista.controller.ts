@@ -2,13 +2,23 @@ import type { Request, Response } from 'express';
 import { entrevistaService } from '../models/entrevista.service';
 import {
   createEntrevistaSchema,
+  evaluacionAcademicaSchema,
+  evaluacionCapellaniaSchema,
+  queryEntrevistaSchema,
   updateEntrevistaSchema,
 } from '../domain/entrevista/entrevista.schema';
 
 export const entrevistaController = {
   getAll: async (req: Request, res: Response) => {
     try {
-      const data = await entrevistaService.getAll();
+      const validation = queryEntrevistaSchema.safeParse(req.query);
+      if (!validation.success) {
+        return res
+          .status(400)
+          .json({ success: false, errors: validation.error.issues });
+      }
+
+      const data = await entrevistaService.getAll(validation.data);
       res.status(200).json({ success: true, data });
     } catch (error) {
       console.error('Error al obtener entrevistas:', error);
@@ -48,12 +58,16 @@ export const entrevistaController = {
       const data = await entrevistaService.create(validationResult.data);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res
-        .status(500)
-        .json({
+      if (error.code === 'P2003') {
+        return res.status(400).json({
           success: false,
-          message: error.message || 'Error interno del servidor',
+          message: 'La solicitud o el evaluador seleccionado no existe',
         });
+      }
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error interno del servidor',
+      });
     }
   },
 
@@ -99,6 +113,47 @@ export const entrevistaController = {
           .status(404)
           .json({ success: false, message: 'Entrevista no encontrada' });
       }
+      res
+        .status(500)
+        .json({ success: false, message: 'Error interno del servidor' });
+    }
+  },
+  evaluar: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const entrevista = await entrevistaService.getById(id as string);
+      if (!entrevista)
+        return res
+          .status(404)
+          .json({ success: false, message: 'Entrevista no encontrada' });
+      if (entrevista.estado === 'CANCELADA') {
+        return res.status(409).json({
+          success: false,
+          message: 'No se puede evaluar una entrevista cancelada',
+        });
+      }
+
+      const schema =
+        entrevista.tipo === 'CAPELLANIA'
+          ? evaluacionCapellaniaSchema
+          : evaluacionAcademicaSchema;
+      const validationResult = schema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: 'Datos de evaluación inválidos',
+          errors: validationResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const data = await entrevistaService.evaluar(
+        id as string,
+        entrevista.tipo,
+        validationResult.data,
+      );
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      console.error('Error al registrar evaluación:', error);
       res
         .status(500)
         .json({ success: false, message: 'Error interno del servidor' });

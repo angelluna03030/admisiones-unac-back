@@ -7,4 +7,5 @@ entrevistaRoutes.get('/', entrevistaController.getAll);
 entrevistaRoutes.get('/:id', entrevistaController.getById);
 entrevistaRoutes.post('/', entrevistaController.create);
 entrevistaRoutes.put('/:id', entrevistaController.update);
+entrevistaRoutes.post('/:id/evaluacion', entrevistaController.evaluar);
 entrevistaRoutes.delete('/:id', entrevistaController.delete);

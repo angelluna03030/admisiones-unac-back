@@ -4,6 +4,8 @@ import { programaRoutes } from './routes/programa.routes';
 import { aspiranteRoutes } from './routes/aspirante.routes';
 import { usuarioRoutes } from './routes/usuario.routes';
 import { entrevistaRoutes } from './routes/entrevista.routes';
+import { dashboardRoutes } from './routes/dashboard.routes';
+import { solicitudRoutes } from './routes/solicitud.routes';
 export const app = express();
 
 // 2. Configurar CORS (¡DEBE IR ANTES de express.json() y de las rutas!)
@@ -30,6 +32,9 @@ app.use('/api/programas', programaRoutes);
 app.use('/aspirantes', aspiranteRoutes); // <-- Agrega esta línea
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/entrevistas', entrevistaRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/solicitudes', solicitudRoutes);
+
 // ⚠️ NOTA: Fíjate que aquí puse '/api/programas'.
 // Si tu frontend llama a 'http://localhost:3000/programas' (sin /api),
 // cambia esta línea a: app.use('/programas', programaRoutes);
