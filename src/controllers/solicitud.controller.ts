@@ -101,12 +101,10 @@ export const solicitudController = {
         });
       }
       if (error.code === 'P2003') {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'El programa seleccionado no existe',
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'El programa seleccionado no existe',
+        });
       }
       console.error('Error al actualizar solicitud:', error);
       res

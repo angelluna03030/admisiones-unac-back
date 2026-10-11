@@ -90,6 +90,12 @@ export const programaController = {
           .status(404)
           .json({ success: false, message: 'Programa no encontrado' });
       }
+      if (error.code === 'P2002') {
+        return res.status(409).json({
+          success: false,
+          message: 'Ya existe un programa con ese código',
+        });
+      }
       res
         .status(500)
         .json({ success: false, message: 'Error interno del servidor' });

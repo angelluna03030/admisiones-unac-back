@@ -70,6 +70,16 @@ export const usuarioController = {
       const { id } = req.params;
 
       const validationResult = updateUsuarioSchema.safeParse(req.body);
+      if (
+        id === req.user?.id &&
+        (req.body.activo === false ||
+          (req.body.rol && req.body.rol !== 'ADMIN'))
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: 'No puedes desactivarte ni quitarte el rol de administrador',
+        });
+      }
       if (!validationResult.success) {
         return res.status(400).json({
           success: false,
@@ -104,6 +114,14 @@ export const usuarioController = {
   delete: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      if (id === req.user?.id) {
+        return res
+          .status(409)
+          .json({
+            success: false,
+            message: 'No puedes desactivar tu propio usuario',
+          });
+      }
       await usuarioService.delete(id as string);
       res
         .status(200)

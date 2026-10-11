@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { passwordSchema } from '../auth/auth.schema';
 
 // Enum que coincide exactamente con tu schema.prisma
 const rolUsuarioEnum = z.enum([
@@ -17,6 +18,8 @@ export const createUsuarioSchema = z.object({
   correo: z.email('Correo electrónico inválido'),
   rol: rolUsuarioEnum,
   activo: z.boolean().optional().default(true),
+  // Opcional: sin contraseña el usuario existe pero no puede iniciar sesión
+  password: passwordSchema.optional(),
 });
 
 export const updateUsuarioSchema = z.object({
@@ -25,6 +28,7 @@ export const updateUsuarioSchema = z.object({
   correo: z.string().email().optional(),
   rol: rolUsuarioEnum.optional(),
   activo: z.boolean().optional(),
+  password: passwordSchema.optional(),
 });
 
 export type CreateUsuarioDto = z.infer<typeof createUsuarioSchema>;

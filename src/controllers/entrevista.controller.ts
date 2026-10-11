@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { entrevistaService } from '../models/entrevista.service';
+import { notificacionService } from '../models/notificacion.service';
 import {
   createEntrevistaSchema,
   evaluacionAcademicaSchema,
@@ -57,6 +58,7 @@ export const entrevistaController = {
 
       const data = await entrevistaService.create(validationResult.data);
       res.status(201).json({ success: true, data });
+      void notificacionService.notificarEntrevista(data.id, 'PROGRAMADA');
     } catch (error: any) {
       if (error.code === 'P2003') {
         return res.status(400).json({
@@ -88,6 +90,7 @@ export const entrevistaController = {
         validationResult.data,
       );
       res.status(200).json({ success: true, data });
+      void notificacionService.notificarEntrevista(data.id, 'ACTUALIZADA');
     } catch (error: any) {
       if (error.code === 'P2025') {
         return res

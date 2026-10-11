@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { usuarioController } from '../controllers/usuario.controller';
-
-// Ya no importamos requireRole por ahora
+import { requireRole } from '../middlewares/auth.middleware';
 
 export const usuarioRoutes = Router();
 
-// Rutas abiertas temporalmente para poder probar desde el Frontend
-// (Más adelante, cuando hagamos el Login, volveremos a protegerlas)
+// La lista es visible para cualquier usuario con sesión (se usa para elegir evaluadores);
+// solo el administrador crea, edita o desactiva usuarios
+const soloAdmin = requireRole(['ADMIN']);
 usuarioRoutes.get('/', usuarioController.getAll);
 usuarioRoutes.get('/:id', usuarioController.getById);
-usuarioRoutes.post('/', usuarioController.create);
-usuarioRoutes.put('/:id', usuarioController.update);
-usuarioRoutes.delete('/:id', usuarioController.delete);
+usuarioRoutes.post('/', soloAdmin, usuarioController.create);
+usuarioRoutes.put('/:id', soloAdmin, usuarioController.update);
+usuarioRoutes.delete('/:id', soloAdmin, usuarioController.delete);

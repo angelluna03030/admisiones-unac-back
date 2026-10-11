@@ -113,6 +113,9 @@ model Usuario {
   correo                   String                  @unique
   rol                      RolUsuario
   activo                   Boolean                 @default(true)
+  /// Hash bcrypt de la contraseña. Null = el usuario aún no tiene acceso al sistema
+  passwordHash             String?                 @map("password_hash")
+  ultimoAcceso             DateTime?               @map("ultimo_acceso")
   createdAt                DateTime                @default(now()) @map("created_at")
   updatedAt                DateTime                @updatedAt @map("updated_at")
   ratificaciones           DecisionAdmision[]      @relation("DecisionesRatificadas")
