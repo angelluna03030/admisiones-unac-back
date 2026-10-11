@@ -94,12 +94,10 @@ export const observacionController = {
   delete: async (req: Request, res: Response) => {
     try {
       await observacionService.delete(req.params.id as string);
-      res
-        .status(200)
-        .json({
-          success: true,
-          message: 'Observación eliminada correctamente',
-        });
+      res.status(200).json({
+        success: true,
+        message: 'Observación eliminada correctamente',
+      });
     } catch (error) {
       manejarError(res, error, 'eliminar observación');
     }

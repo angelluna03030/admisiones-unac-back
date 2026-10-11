@@ -68,24 +68,20 @@ export const requireAuth = async (
       },
     });
     if (!usuario || !usuario.activo) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: 'Tu sesión ya no es válida. Inicia sesión de nuevo.',
-        });
+      return res.status(401).json({
+        success: false,
+        message: 'Tu sesión ya no es válida. Inicia sesión de nuevo.',
+      });
     }
 
     const { activo: _activo, ...sesion } = usuario;
     req.user = sesion;
     next();
   } catch {
-    return res
-      .status(401)
-      .json({
-        success: false,
-        message: 'Tu sesión expiró. Inicia sesión de nuevo.',
-      });
+    return res.status(401).json({
+      success: false,
+      message: 'Tu sesión expiró. Inicia sesión de nuevo.',
+    });
   }
 };
 

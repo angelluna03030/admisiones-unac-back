@@ -115,12 +115,10 @@ export const usuarioController = {
     try {
       const { id } = req.params;
       if (id === req.user?.id) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message: 'No puedes desactivar tu propio usuario',
-          });
+        return res.status(409).json({
+          success: false,
+          message: 'No puedes desactivar tu propio usuario',
+        });
       }
       await usuarioService.delete(id as string);
       res

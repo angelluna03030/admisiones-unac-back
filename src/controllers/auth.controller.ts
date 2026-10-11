@@ -96,12 +96,10 @@ export const authController = {
         validation.data,
       );
       if (!ok) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'La contraseña actual no es correcta',
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'La contraseña actual no es correcta',
+        });
       }
       res
         .status(200)
